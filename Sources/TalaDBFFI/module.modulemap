@@ -1,0 +1,8 @@
+// Linux only: the engine's C interface as a system library. The header and
+// libtaladb_ffi.so are staged in engine/ by scripts/build-engine.sh. Apple
+// platforms get the same module from the xcframework's own module map.
+module TalaDBFFI [system] {
+    header "../../engine/include/taladb.h"
+    link "taladb_ffi"
+    export *
+}

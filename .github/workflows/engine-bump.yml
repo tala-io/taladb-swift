@@ -1,0 +1,53 @@
+name: Engine bump
+
+# The engine's release workflow sends `taladb-release` with the xcframework's
+# URL and SwiftPM checksum. This pins that release in Package.swift and opens a
+# PR; CI on the PR builds and tests against it, so an engine release that
+# breaks this package is caught here rather than by its users.
+on:
+  repository_dispatch:
+    types: [taladb-release]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Engine version, without the leading v
+        required: true
+      checksum:
+        description: SwiftPM checksum of TalaDBFFI-<version>.xcframework.zip
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pin the release
+        env:
+          VERSION: ${{ github.event.client_payload.version || inputs.version }}
+          CHECKSUM: ${{ github.event.client_payload.checksum || inputs.checksum }}
+        run: |
+          set -euo pipefail
+          URL="https://github.com/tala-io/taladb/releases/download/v$VERSION/TalaDBFFI-$VERSION.xcframework.zip"
+          sed -i \
+            -e "s|^let engineURL = .*|let engineURL = \"$URL\"|" \
+            -e "s|^let engineChecksum = .*|let engineChecksum = \"$CHECKSUM\"|" \
+            Package.swift
+          sed -i "s|^ref=.*|ref=v$VERSION|" engine.properties
+          git diff
+
+      - uses: peter-evans/create-pull-request@v7
+        with:
+          branch: engine-bump/v${{ github.event.client_payload.version || inputs.version }}
+          commit-message: "chore: build against TalaDB engine v${{ github.event.client_payload.version || inputs.version }}"
+          title: "Build against TalaDB engine v${{ github.event.client_payload.version || inputs.version }}"
+          body: |
+            Pins engine release v${{ github.event.client_payload.version || inputs.version }}: Package.swift's
+            `engineURL` / `engineChecksum`, and `ref` in engine.properties.
+
+            If the release changed the C ABI, the tests fail on the ABI check: update
+            the Swift wrapper in the same PR.

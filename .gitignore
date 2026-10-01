@@ -1,0 +1,9 @@
+.build/
+.swiftpm/
+*.xcodeproj
+xcuserdata/
+DerivedData/
+Package.resolved
+
+# Staged engine binaries — produced by scripts/build-engine.sh, never committed.
+/engine/

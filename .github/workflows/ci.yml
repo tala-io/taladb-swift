@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    name: Tests (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Engine ref
+        id: engine
+        run: echo "ref=$(sed -n 's/^ref=//p' engine.properties)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          repository: tala-io/taladb
+          ref: ${{ steps.engine.outputs.ref }}
+          path: engine-src
+
+      - name: Rust toolchain
+        working-directory: engine-src
+        run: rustup show active-toolchain || rustup toolchain install
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine-src
+
+      # Swift ships preinstalled on the Ubuntu runner image.
+      - name: Swift version
+        run: swift --version
+
+      - name: Stage engine and test
+        run: |
+          scripts/build-engine.sh engine-src
+          scripts/test-linux.sh
+
+  apple:
+    name: Tests (macOS and iOS simulator)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Engine ref
+        id: engine
+        run: echo "ref=$(sed -n 's/^ref=//p' engine.properties)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          repository: tala-io/taladb
+          ref: ${{ steps.engine.outputs.ref }}
+          path: engine-src
+
+      - name: Rust toolchain
+        working-directory: engine-src
+        run: rustup show active-toolchain || rustup toolchain install
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine-src
+
+      # Package.swift uses engine/TalaDBFFI.xcframework only while it pins no
+      # engine release; once it does, SwiftPM downloads that release's
+      # xcframework and the tests below run against exactly what users get.
+      - name: Build xcframework from source (no release pinned)
+        run: |
+          if grep -q '^let engineURL = ""' Package.swift; then
+            scripts/build-engine.sh engine-src
+          else
+            echo "Package.swift pins an engine release; SwiftPM will download it."
+          fi
+
+      - name: swift test (macOS)
+        run: swift test
+
+      - name: Tests on an iOS simulator
+        run: |
+          set -euo pipefail
+          SCHEME="$(xcodebuild -list -json | python3 -c 'import json,sys; s=json.load(sys.stdin)["workspace"]["schemes"]; print(next((x for x in s if x.endswith("-Package")), s[0]))')"
+          DEVICE="$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next(x["udid"] for k,v in d.items() if "iOS" in k for x in v if x["name"].startswith("iPhone")))')"
+          xcodebuild test -scheme "$SCHEME" -destination "id=$DEVICE"
