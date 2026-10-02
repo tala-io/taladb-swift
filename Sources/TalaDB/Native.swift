@@ -47,19 +47,19 @@ func withCStrings<R>(
 
 /// Encode `value` as JSON text for the engine.
 func jsonText<T: Encodable>(_ value: T) throws -> String {
-    let data: Data
     do {
-        data = try JSONEncoder().encode(value)
+        return try encodeEngineJSON(value)
     } catch {
         throw TalaDBError.invalidArgument("value cannot be encoded as JSON: \(error)")
     }
-    return String(decoding: data, as: UTF8.self)
 }
 
 /// Decode the engine's JSON result.
 func decodeJSON<T: Decodable>(_ type: T.Type, from text: String) throws -> T {
     do {
-        return try JSONDecoder().decode(type, from: Data(text.utf8))
+        let decoder = JSONDecoder()
+        decoder.userInfo[jsonNumberKindsKey] = try jsonNumberKinds(in: text)
+        return try decoder.decode(type, from: Data(text.utf8))
     } catch {
         throw TalaDBError.decoding("\(error)")
     }

@@ -110,7 +110,7 @@ public struct TalaCollection<Document: Codable & Sendable>: Sendable {
     public func watch(_ filter: Filter = [:]) -> AsyncThrowingStream<[Document], Error> {
         let database = database
         let name = name
-        return AsyncThrowingStream { continuation in
+        return AsyncThrowingStream(bufferingPolicy: .bufferingNewest(1)) { continuation in
             let task = Task {
                 do {
                     let filterJSON = try jsonText(filter)

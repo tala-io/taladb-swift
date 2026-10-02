@@ -57,11 +57,13 @@ extension JSONValue: ExpressibleByDictionaryLiteral {
 extension JSONValue: Codable {
     public init(from decoder: Decoder) throws {
         let c = try decoder.singleValueContainer()
+        let kinds = decoder.userInfo[jsonNumberKindsKey] as? [[String]: Bool]
+        let floating = kinds?[decoder.codingPath.map(\.stringValue)] == true
         if c.decodeNil() {
             self = .null
         } else if let b = try? c.decode(Bool.self) {
             self = .bool(b)
-        } else if let i = try? c.decode(Int64.self) {
+        } else if !floating, let i = try? c.decode(Int64.self) {
             self = .int(i)
         } else if let d = try? c.decode(Double.self) {
             self = .double(d)

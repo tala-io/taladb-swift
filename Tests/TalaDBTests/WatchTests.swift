@@ -48,6 +48,24 @@ final class WatchTests: DatabaseTestCase {
         while let snapshot = try await iterator.next(), snapshot.count != 200 {}
     }
 
+    func testSlowConsumerReceivesTheLatestSnapshot() async throws {
+        let db = try await TalaDB.open(at: file())
+        defer { db.close() }
+        let notes = db.collection("notes", as: Note.self)
+        var iterator = notes.watch().makeAsyncIterator()
+        _ = try await iterator.next()
+
+        // Let the producer observe separate writes while the consumer is idle.
+        // An unbounded stream keeps every full snapshot and next() returns 1.
+        for i in 0..<3 {
+            try await notes.insert(Note(title: "n\(i)"))
+            try await Task.sleep(nanoseconds: 100_000_000)
+        }
+        try await Task.sleep(nanoseconds: 300_000_000)
+        let latest = try await iterator.next()
+        XCTAssertEqual(latest?.count, 3)
+    }
+
     /// close() must end live queries and release the file — a watch holds the
     /// storage open, so a lingering one would make the reopen below fail.
     func testClosingTheDatabaseEndsTheStreamAndReleasesTheFile() async throws {
