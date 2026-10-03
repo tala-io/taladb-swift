@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build the TalaDB engine from a local checkout of tala-io/taladb and stage it
+# Build the TalaDB engine from a local checkout of taladb/taladb and stage it
 # in engine/, where Package.swift looks for it.
 #
 #   Linux:  engine/include/taladb.h and engine/host/libtaladb_ffi.so, for the

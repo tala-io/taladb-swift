@@ -5,7 +5,7 @@
 
 # TalaDB for Swift
 
-Swift bindings for [TalaDB](https://github.com/tala-io/taladb), an embedded
+Swift bindings for [TalaDB](https://github.com/taladb/taladb), an embedded
 document and vector database, for native iOS and macOS apps that do not use
 React Native.
 
@@ -21,7 +21,7 @@ and optional encryption at rest. Everything runs on the device in a single file.
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/tala-io/taladb-swift", from: "0.1.0"),
+    .package(url: "https://github.com/taladb/taladb-swift", from: "0.1.0"),
 ],
 targets: [
     .target(name: "MyApp", dependencies: [.product(name: "TalaDB", package: "taladb-swift")]),
@@ -126,7 +126,7 @@ results against exact search on your own query embeddings.
 
 ```
 Swift API (TalaDB, TalaCollection)           Sources/TalaDB, this repo
-  └─ import TalaDBFFI  ──►  libtaladb_ffi      the engine's C FFI, from tala-io/taladb
+  └─ import TalaDBFFI  ──►  libtaladb_ffi      the engine's C FFI, from taladb/taladb
 ```
 
 Swift calls the engine's C interface directly. No shim is needed: the
@@ -138,7 +138,7 @@ fails with `TalaDBError.incompatibleEngine` instead of corrupting memory.
 
 ## Development
 
-You need Rust and a checkout of [tala-io/taladb](https://github.com/tala-io/taladb).
+You need Rust and a checkout of [taladb/taladb](https://github.com/taladb/taladb).
 
 **On a Mac:**
 
