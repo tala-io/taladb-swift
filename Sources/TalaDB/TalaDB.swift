@@ -19,10 +19,13 @@ public final class TalaDB: @unchecked Sendable {
     // while another is mid-call frees the handle under it.
     private let queue = DispatchQueue(label: "dev.taladb.database", attributes: .concurrent)
     private var handle: OpaquePointer?
-    // Native live-query handles. Each keeps the database's storage open, so
-    // close() closes them all rather than leaving the file held until each
-    // stream next wakes.
-    private var watches: Set<LiveQueryHandle> = []
+    // Open live queries, guarded by `watchesLock` rather than `queue`: a live
+    // query's poll does not run on `queue` (see watchNext), so its bookkeeping
+    // must not need a barrier there. Each native handle keeps the database's
+    // storage open, so close() closes them all rather than leaving the file
+    // held until each stream next wakes.
+    private let watchesLock = NSLock()
+    private var watches: Set<LiveQuery> = []
 
     private init(handle: OpaquePointer) {
         self.handle = handle
@@ -33,7 +36,7 @@ public final class TalaDB: @unchecked Sendable {
         // reference, and that is often a block on `queue` itself — a
         // queue.sync there waits on itself, which libdispatch traps. No other
         // reference exists by now, so nothing else can touch the handle.
-        for watch in watches { taladb_watch_close(watch.pointer) }
+        for watch in watches { watch.close() }
         if let handle { taladb_close(handle) }
     }
 
@@ -142,8 +145,15 @@ public final class TalaDB: @unchecked Sendable {
     private func closeNow() {
         queue.sync(flags: .barrier) {
             guard let handle else { return }
-            for watch in watches { taladb_watch_close(watch.pointer) }
-            watches.removeAll()
+            let open = watchesLock.locked {
+                defer { watches.removeAll() }
+                return watches
+            }
+            // Stop every live query before waiting on any: each then waits
+            // only for the poll already in flight, so close() takes at most
+            // one poll however many are open.
+            for watch in open { watch.markClosing() }
+            for watch in open { watch.close() }
             taladb_close(handle)
             self.handle = nil
         }
@@ -181,52 +191,98 @@ public final class TalaDB: @unchecked Sendable {
 
     // MARK: - Live queries (used by TalaCollection.watch)
 
-    func watchOpen(collection: String, filter: String) async throws -> LiveQueryHandle {
-        try await withCheckedThrowingContinuation { continuation in
-            queue.async(flags: .barrier) {
-                continuation.resume(
-                    with: Result {
-                        guard let handle = self.handle else { throw TalaDBError.closed }
-                        let watch = try withCStrings([collection, filter]) { p in taladb_watch(handle, p[0], p[1]) }
-                        guard let watch else { throw engineError("failed to open live query") }
-                        let live = LiveQueryHandle(pointer: watch)
-                        self.watches.insert(live)
-                        return live
-                    })
-            }
+    func watchOpen(collection: String, filter: String) async throws -> LiveQuery {
+        // An ordinary operation on the handle, not a barrier: subscribing
+        // never waits behind other live queries' polls.
+        try await run { handle in
+            let watch = try withCStrings([collection, filter]) { p in taladb_watch(handle, p[0], p[1]) }
+            guard let watch else { throw engineError("failed to open live query") }
+            let live = LiveQuery(pointer: watch)
+            self.watchesLock.locked { _ = self.watches.insert(live) }
+            return live
         }
     }
 
     /// Wait up to `timeoutMs` for a write. Returns the new snapshot's JSON, or
-    /// nil on timeout. Runs as an ordinary block, so close() waits at most one
-    /// timeout for it.
-    func watchNext(_ watch: LiveQueryHandle, timeoutMs: UInt32) async throws -> String? {
+    /// nil on timeout.
+    ///
+    /// Runs off `queue`, holding only this live query's own lock: a native
+    /// watch needs no database handle (it keeps the storage open itself), and
+    /// waiting as a block on `queue` made every subscribe, unsubscribe and
+    /// close — barriers there — wait behind each running live query's poll.
+    func watchNext(_ watch: LiveQuery, timeoutMs: UInt32) async throws -> String? {
         try await withCheckedThrowingContinuation { continuation in
-            queue.async {
-                continuation.resume(
-                    with: Result {
-                        guard self.handle != nil, self.watches.contains(watch) else { throw TalaDBError.closed }
-                        var out: UnsafeMutablePointer<CChar>?
-                        switch taladb_watch_next(watch.pointer, timeoutMs, &out) {
-                        case 0: return nil
-                        case 1: return try takeString(out, "live query failed")
-                        default: throw engineError("live query failed")
-                        }
-                    })
+            DispatchQueue.global(qos: .userInitiated).async {
+                continuation.resume(with: Result { try watch.next(timeoutMs: timeoutMs) })
             }
         }
     }
 
-    /// Idempotent: close() may already have closed it.
-    func watchClose(_ watch: LiveQueryHandle) {
-        queue.async(flags: .barrier) {
-            if self.watches.remove(watch) != nil { taladb_watch_close(watch.pointer) }
-        }
+    /// Idempotent: close() may already have closed it. Waits for this query's
+    /// own poll only, off the caller's thread.
+    func watchClose(_ watch: LiveQuery) {
+        watchesLock.locked { _ = watches.remove(watch) }
+        watch.markClosing()
+        DispatchQueue.global(qos: .utility).async { watch.close() }
     }
 }
 
-/// A native live-query handle. Sendable because it is only ever dereferenced
-/// on the owning database's queue, which serialises it against close().
-struct LiveQueryHandle: @unchecked Sendable, Hashable {
-    let pointer: OpaquePointer
+/// One native live query. The engine forbids closing a watch while a call on
+/// it is in progress, so ``next(timeoutMs:)`` and ``close()`` share a lock.
+/// Once ``markClosing()`` has run, a poll that wins the lock ahead of the close
+/// fails at once instead of starting another wait.
+final class LiveQuery: @unchecked Sendable, Hashable {
+    private let pointer: OpaquePointer
+    private let lock = NSLock()
+    private var open = true
+    private let closingFlag = ManagedAtomicFlag()
+
+    init(pointer: OpaquePointer) {
+        self.pointer = pointer
+    }
+
+    func markClosing() {
+        closingFlag.set()
+    }
+
+    func next(timeoutMs: UInt32) throws -> String? {
+        try lock.locked {
+            guard open, !closingFlag.isSet else { throw TalaDBError.closed }
+            var out: UnsafeMutablePointer<CChar>?
+            switch taladb_watch_next(pointer, timeoutMs, &out) {
+            case 0: return nil
+            case 1: return try takeString(out, "live query failed")
+            default: throw engineError("live query failed")
+            }
+        }
+    }
+
+    func close() {
+        markClosing()
+        lock.locked {
+            guard open else { return }
+            open = false
+            taladb_watch_close(pointer)
+        }
+    }
+
+    static func == (a: LiveQuery, b: LiveQuery) -> Bool { a === b }
+    func hash(into hasher: inout Hasher) { hasher.combine(ObjectIdentifier(self)) }
+}
+
+/// A flag set once from any thread and read from any other.
+private final class ManagedAtomicFlag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = false
+    var isSet: Bool { lock.locked { value } }
+    func set() { lock.locked { value = true } }
+}
+
+extension NSLock {
+    /// `withLock`, which Apple's Foundation only has from iOS 16 and macOS 13.
+    func locked<R>(_ body: () throws -> R) rethrows -> R {
+        lock()
+        defer { unlock() }
+        return try body()
+    }
 }
