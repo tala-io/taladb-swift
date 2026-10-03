@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+
 @testable import TalaDB
 
 final class TalaDBTests: DatabaseTestCase {
@@ -89,7 +90,8 @@ final class TalaDBTests: DatabaseTestCase {
         let notes = db.collection("notes", as: Note.self)
         let id = try await notes.insert(Note(title: "existing"))
 
-        await assertThrowsAsync(try await notes.insertMany([Note(title: "new"), Note(id: id, title: "duplicate")]), isEngineError)
+        await assertThrowsAsync(
+            try await notes.insertMany([Note(title: "new"), Note(id: id, title: "duplicate")]), isEngineError)
         let count = try await notes.count()
         XCTAssertEqual(count, 1)
     }
@@ -217,7 +219,8 @@ final class TalaDBTests: DatabaseTestCase {
         try await db.collection("notes", as: Note.self).insert(Note(title: "hidden"))
         db.close()
 
-        await assertThrowsAsync(try await TalaDB.open(at: url, config: TalaDBConfig(passphrase: "battery staple")), isEngineError)
+        await assertThrowsAsync(
+            try await TalaDB.open(at: url, config: TalaDBConfig(passphrase: "battery staple")), isEngineError)
 
         let reopened = try await TalaDB.open(at: url, config: TalaDBConfig(passphrase: "correct horse"))
         defer { reopened.close() }
@@ -260,7 +263,10 @@ final class TalaDBTests: DatabaseTestCase {
         let results = await withTaskGroup(of: Error?.self) { group -> [Error?] in
             for i in 0..<32 {
                 group.addTask {
-                    do { try await notes.insert(Note(title: "n\(i)")); return nil } catch { return error }
+                    do {
+                        try await notes.insert(Note(title: "n\(i)"))
+                        return nil
+                    } catch { return error }
                 }
             }
             db.close()

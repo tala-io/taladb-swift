@@ -22,11 +22,6 @@ public struct TalaCollection<Document: Codable & Sendable>: Sendable {
     public let database: TalaDB
     public let name: String
 
-    init(database: TalaDB, name: String) {
-        self.database = database
-        self.name = name
-    }
-
     // MARK: - Documents
 
     /// Insert `document` and return its `_id`.
@@ -121,7 +116,9 @@ public struct TalaCollection<Document: Codable & Sendable>: Sendable {
                     var last = try await database.call("find", [jsonText(name), filterJSON], as: JSONValue.self)
                     continuation.yield(try Self.decode([Document].self, last))
                     while !Task.isCancelled {
-                        guard let text = try await database.watchNext(watch, timeoutMs: Self.watchPollMs) else { continue }
+                        guard let text = try await database.watchNext(watch, timeoutMs: Self.watchPollMs) else {
+                            continue
+                        }
                         let snapshot = try decodeJSON(JSONValue.self, from: text)
                         if snapshot != last {
                             last = snapshot
@@ -266,7 +263,8 @@ public struct TalaCollection<Document: Codable & Sendable>: Sendable {
             let optionsJSON = try jsonText(options.json)
             let result = try withCStrings([name, textField, text, vectorField, filterJSON, optionsJSON]) { p in
                 vector.withUnsafeBufferPointer { v in
-                    taladb_hybrid_search(handle, p[0], p[1], p[2], p[3], v.baseAddress, UInt(v.count), UInt(topK), p[4], p[5])
+                    taladb_hybrid_search(
+                        handle, p[0], p[1], p[2], p[3], v.baseAddress, UInt(v.count), UInt(topK), p[4], p[5])
                 }
             }
             return try decodeJSON([HybridHit<Document>].self, from: try takeString(result, "hybridSearch failed"))
@@ -288,7 +286,8 @@ public struct TalaCollection<Document: Codable & Sendable>: Sendable {
     static func encodeDocument(_ document: Document) throws -> String {
         let text = try jsonText(document)
         guard text.first == "{" else {
-            throw TalaDBError.invalidArgument("TalaDB documents must encode to a JSON object; \(Document.self) does not")
+            throw TalaDBError.invalidArgument(
+                "TalaDB documents must encode to a JSON object; \(Document.self) does not")
         }
         return text
     }

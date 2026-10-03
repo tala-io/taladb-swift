@@ -55,7 +55,7 @@ private struct JSONNumberScanner {
         whitespace()
         guard let byte = next else { throw invalid() }
         switch byte {
-        case 123: // object
+        case 123:  // object
             index += 1
             whitespace()
             if next != 125 {
@@ -69,7 +69,7 @@ private struct JSONNumberScanner {
                 }
             }
             try consume(125)
-        case 91: // array
+        case 91:  // array
             index += 1
             whitespace()
             var element = 0
@@ -90,7 +90,9 @@ private struct JSONNumberScanner {
         case 45, 48...57:
             let start = index
             var floating = false
-            while let byte = next, byte == 45 || byte == 43 || byte == 46 || byte == 101 || byte == 69 || (48...57).contains(byte) {
+            while let byte = next,
+                byte == 45 || byte == 43 || byte == 46 || byte == 101 || byte == 69 || (48...57).contains(byte)
+            {
                 if byte == 46 || byte == 101 || byte == 69 { floating = true }
                 index += 1
             }

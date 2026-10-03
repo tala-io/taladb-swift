@@ -33,7 +33,7 @@ public final class TalaDB: @unchecked Sendable {
         // reference, and that is often a block on `queue` itself — a
         // queue.sync there waits on itself, which libdispatch traps. No other
         // reference exists by now, so nothing else can touch the handle.
-        watches.forEach { taladb_watch_close($0.pointer) }
+        for watch in watches { taladb_watch_close(watch.pointer) }
         if let handle { taladb_close(handle) }
     }
 
@@ -54,13 +54,14 @@ public final class TalaDB: @unchecked Sendable {
         let configJSON = try config.json()
         let db: TalaDB = try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
-                continuation.resume(with: Result {
-                    let handle = try withCStrings([url.path, configJSON]) { p in
-                        taladb_open_with_config(p[0], p[1])
-                    }
-                    guard let handle else { throw engineError("failed to open database") }
-                    return TalaDB(handle: handle)
-                })
+                continuation.resume(
+                    with: Result {
+                        let handle = try withCStrings([url.path, configJSON]) { p in
+                            taladb_open_with_config(p[0], p[1])
+                        }
+                        guard let handle else { throw engineError("failed to open database") }
+                        return TalaDB(handle: handle)
+                    })
             }
         }
         do {
@@ -141,7 +142,7 @@ public final class TalaDB: @unchecked Sendable {
     private func closeNow() {
         queue.sync(flags: .barrier) {
             guard let handle else { return }
-            watches.forEach { taladb_watch_close($0.pointer) }
+            for watch in watches { taladb_watch_close(watch.pointer) }
             watches.removeAll()
             taladb_close(handle)
             self.handle = nil
@@ -183,14 +184,15 @@ public final class TalaDB: @unchecked Sendable {
     func watchOpen(collection: String, filter: String) async throws -> LiveQueryHandle {
         try await withCheckedThrowingContinuation { continuation in
             queue.async(flags: .barrier) {
-                continuation.resume(with: Result {
-                    guard let handle = self.handle else { throw TalaDBError.closed }
-                    let watch = try withCStrings([collection, filter]) { p in taladb_watch(handle, p[0], p[1]) }
-                    guard let watch else { throw engineError("failed to open live query") }
-                    let live = LiveQueryHandle(pointer: watch)
-                    self.watches.insert(live)
-                    return live
-                })
+                continuation.resume(
+                    with: Result {
+                        guard let handle = self.handle else { throw TalaDBError.closed }
+                        let watch = try withCStrings([collection, filter]) { p in taladb_watch(handle, p[0], p[1]) }
+                        guard let watch else { throw engineError("failed to open live query") }
+                        let live = LiveQueryHandle(pointer: watch)
+                        self.watches.insert(live)
+                        return live
+                    })
             }
         }
     }
@@ -201,15 +203,16 @@ public final class TalaDB: @unchecked Sendable {
     func watchNext(_ watch: LiveQueryHandle, timeoutMs: UInt32) async throws -> String? {
         try await withCheckedThrowingContinuation { continuation in
             queue.async {
-                continuation.resume(with: Result {
-                    guard self.handle != nil, self.watches.contains(watch) else { throw TalaDBError.closed }
-                    var out: UnsafeMutablePointer<CChar>?
-                    switch taladb_watch_next(watch.pointer, timeoutMs, &out) {
-                    case 0: return nil
-                    case 1: return try takeString(out, "live query failed")
-                    default: throw engineError("live query failed")
-                    }
-                })
+                continuation.resume(
+                    with: Result {
+                        guard self.handle != nil, self.watches.contains(watch) else { throw TalaDBError.closed }
+                        var out: UnsafeMutablePointer<CChar>?
+                        switch taladb_watch_next(watch.pointer, timeoutMs, &out) {
+                        case 0: return nil
+                        case 1: return try takeString(out, "live query failed")
+                        default: throw engineError("live query failed")
+                        }
+                    })
             }
         }
     }

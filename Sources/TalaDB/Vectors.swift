@@ -215,7 +215,8 @@ extension TalaCollection {
 
     @discardableResult
     public func cancelVectorBuild(_ field: String, id: String) async throws -> VectorBuildProgress {
-        try await vectorCommand(["op": "cancelBuild", "field": .string(field), "id": .string(id)], as: VectorBuildProgress.self)
+        try await vectorCommand(
+            ["op": "cancelBuild", "field": .string(field), "id": .string(id)], as: VectorBuildProgress.self)
     }
 
     /// Measure how often approximate search finds the exact top `topK` for
@@ -228,7 +229,9 @@ extension TalaCollection {
         filter: Filter? = nil,
         options: VectorQueryOptions = VectorQueryOptions()
     ) async throws -> VectorRecall {
-        guard (1...1000).contains(queries.count) else { throw TalaDBError.invalidArgument("recall needs 1...1000 queries") }
+        guard (1...1000).contains(queries.count) else {
+            throw TalaDBError.invalidArgument("recall needs 1...1000 queries")
+        }
         guard topK >= 1 else { throw TalaDBError.invalidArgument("topK must be positive") }
         var request: [String: JSONValue] = [
             "op": "recall", "field": .string(field), "queries": .array(try queries.map(Self.vectorJSON)),
@@ -238,7 +241,9 @@ extension TalaCollection {
         return try await vectorCommand(request, as: VectorRecall.self)
     }
 
-    private func vectorCommand<R: Decodable & Sendable>(_ request: [String: JSONValue], as type: R.Type) async throws -> R {
+    private func vectorCommand<R: Decodable & Sendable>(_ request: [String: JSONValue], as type: R.Type) async throws
+        -> R
+    {
         try await call("vectorCommand", [try jsonText(JSONValue.object(request))], as: type)
     }
 

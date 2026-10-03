@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+
 @testable import TalaDB
 
 struct Note: Codable, Sendable, Equatable {
@@ -8,7 +9,10 @@ struct Note: Codable, Sendable, Equatable {
     var body: String = ""
     var stars: Int = 0
 
-    enum CodingKeys: String, CodingKey { case id = "_id", title, body, stars }
+    enum CodingKeys: String, CodingKey {
+        case id = "_id"
+        case title, body, stars
+    }
 }
 
 struct Doc: Codable, Sendable {
@@ -18,7 +22,10 @@ struct Doc: Codable, Sendable {
     var kind: String = ""
     var embedding: [Float] = []
 
-    enum CodingKeys: String, CodingKey { case id = "_id", title, text, kind, embedding }
+    enum CodingKeys: String, CodingKey {
+        case id = "_id"
+        case title, text, kind, embedding
+    }
 }
 
 /// A fresh directory per test, removed afterwards.

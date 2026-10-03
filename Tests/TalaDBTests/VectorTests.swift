@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+
 @testable import TalaDB
 
 final class VectorTests: DatabaseTestCase {
@@ -12,10 +13,12 @@ final class VectorTests: DatabaseTestCase {
         db = try await TalaDB.open(at: file("vectors.db"))
         docs = db.collection("docs", as: Doc.self)
         try await docs.createVectorIndex("embedding", dimensions: 2)
-        try await docs.insertMany((0..<60).map { i in
-            let angle = Double(i) * .pi / 30
-            return Doc(title: "d\(i)", kind: i % 2 == 0 ? "a" : "b", embedding: [Float(cos(angle)), Float(sin(angle))])
-        })
+        try await docs.insertMany(
+            (0..<60).map { i in
+                let angle = Double(i) * .pi / 30
+                return Doc(
+                    title: "d\(i)", kind: i % 2 == 0 ? "a" : "b", embedding: [Float(cos(angle)), Float(sin(angle))])
+            })
     }
 
     override func tearDown() async throws {
@@ -24,7 +27,8 @@ final class VectorTests: DatabaseTestCase {
     }
 
     func testExactSearchReportsHowItRanAndPaginates() async throws {
-        let first = try await docs.searchVectors("embedding", vector: [1, 0], topK: 3, options: VectorQueryOptions(mode: .exact))
+        let first = try await docs.searchVectors(
+            "embedding", vector: [1, 0], topK: 3, options: VectorQueryOptions(mode: .exact))
         XCTAssertEqual(first.execution.path, "exact")
         XCTAssertEqual(first.execution.reason, "requestedExact")
         XCTAssertEqual(first.hits.first?.document.title, "d0")
@@ -47,14 +51,17 @@ final class VectorTests: DatabaseTestCase {
         let status = try await docs.vectorIndexStatus("embedding")
         XCTAssertEqual(status.state, .flat)
         await assertThrowsAsync(
-            try await docs.searchVectors("embedding", vector: [1, 0], topK: 1, options: VectorQueryOptions(mode: .ann)),
+            try await docs.searchVectors(
+                "embedding", vector: [1, 0], topK: 1, options: VectorQueryOptions(mode: .ann)),
             isEngineError
         )
     }
 
     func testBatchedRebuildReportsProgressAndEnablesTheGraph() async throws {
         let steps = RunLog()
-        let done = try await docs.rebuildVectorIndex("embedding", options: HnswOptions(m: 8, efConstruction: 32), batchSize: 16) {
+        let done = try await docs.rebuildVectorIndex(
+            "embedding", options: HnswOptions(m: 8, efConstruction: 32), batchSize: 16
+        ) {
             steps.add(UInt32($0.processed))
         }
         XCTAssertEqual(done.state, .ready)
@@ -80,7 +87,8 @@ final class VectorTests: DatabaseTestCase {
     func testCancellingARebuildCancelsTheBuild() async throws {
         let docs = docs!
         let task = Task {
-            try await docs.rebuildVectorIndex("embedding", options: HnswOptions(m: 8, efConstruction: 32), batchSize: 4) { _ in }
+            try await docs.rebuildVectorIndex("embedding", options: HnswOptions(m: 8, efConstruction: 32), batchSize: 4)
+            { _ in }
         }
         task.cancel()
         let result = await task.result

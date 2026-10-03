@@ -22,7 +22,7 @@ public enum TalaDBError: Error, Sendable, Equatable, CustomStringConvertible {
         case .closed: return "TalaDB database is closed"
         case .invalidArgument(let message): return message
         case .decoding(let message): return "TalaDB result could not be decoded: \(message)"
-        case let .incompatibleEngine(header, library):
+        case .incompatibleEngine(let header, let library):
             return "TalaDB engine library has C ABI version \(library), but this package was built for \(header)"
         }
     }

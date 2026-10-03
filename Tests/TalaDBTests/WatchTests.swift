@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+
 @testable import TalaDB
 
 final class WatchTests: DatabaseTestCase {

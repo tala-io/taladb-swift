@@ -1,6 +1,7 @@
 import Foundation
 import TalaDBFFI
 import XCTest
+
 @testable import TalaDB
 
 final class JSONNumbersTests: DatabaseTestCase {
@@ -87,7 +88,10 @@ final class JSONNumbersTests: DatabaseTestCase {
     }
 
     func testTypedFloatingPointDocumentsAreStoredAsFloats() async throws {
-        struct Model: Codable, Sendable { let double: Double; let float: Float }
+        struct Model: Codable, Sendable {
+            let double: Double
+            let float: Float
+        }
         let db = try await TalaDB.open(at: file())
         defer { db.close() }
         try await db.collection("numbers", as: Model.self).insert(Model(double: 1, float: 2))

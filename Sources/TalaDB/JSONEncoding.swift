@@ -24,8 +24,14 @@ private final class JSONNode {
 private struct JSONIndexKey: CodingKey {
     let stringValue: String
     let intValue: Int?
-    init(index: Int) { stringValue = "Index \(index)"; intValue = index }
-    init?(stringValue: String) { self.stringValue = stringValue; intValue = nil }
+    init(index: Int) {
+        stringValue = "Index \(index)"
+        intValue = index
+    }
+    init?(stringValue: String) {
+        self.stringValue = stringValue
+        intValue = nil
+    }
     init?(intValue: Int) { self.init(index: intValue) }
 }
 
@@ -94,7 +100,9 @@ private struct ObjectContainer<Key: CodingKey>: KeyedEncodingContainerProtocol {
     func encode<T: Encodable>(_ value: T, forKey key: Key) throws {
         try ValueContainer(encoder: child(key)).encode(value)
     }
-    func nestedContainer<NestedKey: CodingKey>(keyedBy type: NestedKey.Type, forKey key: Key) -> KeyedEncodingContainer<NestedKey> {
+    func nestedContainer<NestedKey: CodingKey>(keyedBy type: NestedKey.Type, forKey key: Key) -> KeyedEncodingContainer<
+        NestedKey
+    > {
         child(key).container(keyedBy: type)
     }
     func nestedUnkeyedContainer(forKey key: Key) -> UnkeyedEncodingContainer { child(key).unkeyedContainer() }
@@ -123,17 +131,18 @@ private struct ArrayContainer: UnkeyedEncodingContainer {
     func superEncoder() -> Encoder { child() }
 }
 
-private extension JSONValue {
-    func wireJSON() throws -> String {
+extension JSONValue {
+    fileprivate func wireJSON() throws -> String {
         switch self {
         case .null: return "null"
         case .bool(let value): return value ? "true" : "false"
         case .int(let value): return String(value)
         case .double(let value):
             guard value.isFinite else {
-                throw EncodingError.invalidValue(value, .init(codingPath: [], debugDescription: "JSON numbers must be finite"))
+                throw EncodingError.invalidValue(
+                    value, .init(codingPath: [], debugDescription: "JSON numbers must be finite"))
             }
-            return String(value) // e.g. 1.0, rather than 1
+            return String(value)  // e.g. 1.0, rather than 1
         case .string(let value): return String(decoding: try JSONEncoder().encode(value), as: UTF8.self)
         case .array(let values): return "[" + (try values.map { try $0.wireJSON() }).joined(separator: ",") + "]"
         case .object(let values):

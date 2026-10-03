@@ -1,13 +1,25 @@
 import Foundation
 import XCTest
+
 @testable import TalaDB
 
 /// Records which migrations ran, across @Sendable closures.
 final class RunLog: @unchecked Sendable {
     private let lock = NSLock()
     private var entries: [UInt32] = []
-    func add(_ v: UInt32) { lock.lock(); entries.append(v); lock.unlock() }
-    func take() -> [UInt32] { lock.lock(); defer { entries = []; lock.unlock() }; return entries }
+    func add(_ v: UInt32) {
+        lock.lock()
+        entries.append(v)
+        lock.unlock()
+    }
+    func take() -> [UInt32] {
+        lock.lock()
+        defer {
+            entries = []
+            lock.unlock()
+        }
+        return entries
+    }
 }
 
 final class MigrationTests: DatabaseTestCase {
@@ -34,14 +46,19 @@ final class MigrationTests: DatabaseTestCase {
         let log = RunLog()
         let failing = [
             Migration(1) { _ in log.add(1) },
-            Migration(2) { _ in log.add(2); throw Boom() },
+            Migration(2) { _ in
+                log.add(2)
+                throw Boom()
+            },
             Migration(3) { _ in log.add(3) },
         ]
         await assertThrowsAsync(try await TalaDB.open(at: file(), migrations: failing)) { $0 is Boom }
         XCTAssertEqual(log.take(), [1, 2])
 
         // The failed open closed its handle, so the file can be reopened.
-        let fixed = [Migration(1) { _ in log.add(1) }, Migration(2) { _ in log.add(2) }, Migration(3) { _ in log.add(3) }]
+        let fixed = [
+            Migration(1) { _ in log.add(1) }, Migration(2) { _ in log.add(2) }, Migration(3) { _ in log.add(3) },
+        ]
         let db = try await TalaDB.open(at: file(), migrations: fixed)
         let version = try await db.userVersion()
         XCTAssertEqual(version, 3)

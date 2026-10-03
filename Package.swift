@@ -10,21 +10,22 @@ let engineURL = ""
 let engineChecksum = ""
 
 #if os(Linux)
-// On Linux the engine is a system library: scripts/build-engine.sh stages the
-// header and libtaladb_ffi.so in engine/, and scripts/test-linux.sh points the
-// linker at it. This is how CI and non-Apple contributors run the test suite.
-let engine: Target = .systemLibrary(name: "TalaDBFFI", path: "Sources/TalaDBFFI")
+    // On Linux the engine is a system library: scripts/build-engine.sh stages the
+    // header and libtaladb_ffi.so in engine/, and scripts/test-linux.sh points the
+    // linker at it. This is how CI and non-Apple contributors run the test suite.
+    let engine: Target = .systemLibrary(name: "TalaDBFFI", path: "Sources/TalaDBFFI")
 #else
-let engine: Target = engineURL.isEmpty
-    ? .binaryTarget(name: "TalaDBFFI", path: "engine/TalaDBFFI.xcframework")
-    : .binaryTarget(name: "TalaDBFFI", url: engineURL, checksum: engineChecksum)
+    let engine: Target =
+        engineURL.isEmpty
+        ? .binaryTarget(name: "TalaDBFFI", path: "engine/TalaDBFFI.xcframework")
+        : .binaryTarget(name: "TalaDBFFI", url: engineURL, checksum: engineChecksum)
 #endif
 
 let package = Package(
     name: "TalaDB",
     platforms: [.iOS(.v13), .macOS(.v10_15)],
     products: [
-        .library(name: "TalaDB", targets: ["TalaDB"]),
+        .library(name: "TalaDB", targets: ["TalaDB"])
     ],
     targets: [
         engine,
