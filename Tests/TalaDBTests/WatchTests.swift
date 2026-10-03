@@ -112,8 +112,12 @@ final class WatchTests: DatabaseTestCase {
         let notes = db.collection("notes", as: Note.self)
         try await notes.insert(Note(title: "a"))
         let running = (0..<5).map { _ in Task { for try await _ in notes.watch() {} } }
-        defer { running.forEach { $0.cancel() } }
-        try await Task.sleep(nanoseconds: 500_000_000) // every running query is inside a native wait
+        defer {
+            for task in running {
+                task.cancel()
+            }
+        }
+        try await Task.sleep(nanoseconds: 500_000_000)  // every running query is inside a native wait
 
         var worstMs = 0.0
         for _ in 0..<5 {
@@ -121,7 +125,7 @@ final class WatchTests: DatabaseTestCase {
             var iterator = notes.watch().makeAsyncIterator()
             _ = try await iterator.next()
             worstMs = max(worstMs, Date().timeIntervalSince(start) * 1000)
-            try await Task.sleep(nanoseconds: 73_000_000) // land at different points in the running polls
+            try await Task.sleep(nanoseconds: 73_000_000)  // land at different points in the running polls
         }
         XCTAssertLessThan(worstMs, 150, "a new live query took \(Int(worstMs)) ms to deliver its first result")
     }
