@@ -3,9 +3,9 @@ import PackageDescription
 
 // The TalaDB engine release whose TalaDBFFI.xcframework this package links on
 // Apple platforms. .github/workflows/engine-bump.yml rewrites these two lines
-// when the engine publishes. While they are empty — no engine release ships the
-// Swift xcframework yet — Apple builds use engine/TalaDBFFI.xcframework, built
-// from an engine checkout by scripts/build-engine.sh on a Mac.
+// when the engine publishes. While they are empty, Apple builds use
+// engine/TalaDBFFI.xcframework, built from an engine checkout by
+// scripts/build-engine.sh on a Mac.
 let engineURL = "https://github.com/taladb/taladb/releases/download/v0.12.0/TalaDBFFI-0.12.0.xcframework.zip"
 let engineChecksum = "70d3b329b1ac3f46d376c4135a46cbfbb0b0fe3a0652f592869894849c26a63e"
 

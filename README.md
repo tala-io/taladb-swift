@@ -13,10 +13,6 @@ Documents, MongoDB-style filters and updates, secondary and compound indexes,
 full-text search, vector search and hybrid search, live queries, migrations,
 and optional encryption at rest. Everything runs on the device in a single file.
 
-> **Status: pre-release.** It needs engine ABI version 2, which no TalaDB
-> release ships yet, so `Package.swift` pins no engine binary. See
-> [Development](#development) to build it from source.
-
 ## Install
 
 ```swift
