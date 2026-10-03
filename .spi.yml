@@ -1,0 +1,8 @@
+# Swift Package Index: build and host the DocC documentation for TalaDB.
+# The engine ships as an Apple xcframework, so docs build for iOS; Linux
+# builds need an engine checkout (README, Development).
+version: 1
+builder:
+  configs:
+    - platform: ios
+      documentation_targets: [TalaDB]
