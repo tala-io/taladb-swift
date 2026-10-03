@@ -210,9 +210,14 @@ public final class TalaDB: @unchecked Sendable {
     /// watch needs no database handle (it keeps the storage open itself), and
     /// waiting as a block on `queue` made every subscribe, unsubscribe and
     /// close — barriers there — wait behind each running live query's poll.
+    ///
+    /// The wait runs on the live query's own serial queue, not a global one:
+    /// on Linux a global queue has one thread per CPU, so a few running polls
+    /// filled it and every other operation waited a poll for a thread. A
+    /// serial queue gets a thread of its own whenever none is free.
     func watchNext(_ watch: LiveQuery, timeoutMs: UInt32) async throws -> String? {
         try await withCheckedThrowingContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
+            watch.queue.async {
                 continuation.resume(with: Result { try watch.next(timeoutMs: timeoutMs) })
             }
         }
@@ -223,7 +228,7 @@ public final class TalaDB: @unchecked Sendable {
     func watchClose(_ watch: LiveQuery) {
         watchesLock.locked { _ = watches.remove(watch) }
         watch.markClosing()
-        DispatchQueue.global(qos: .utility).async { watch.close() }
+        watch.queue.async { watch.close() }
     }
 }
 
@@ -234,6 +239,8 @@ public final class TalaDB: @unchecked Sendable {
 final class LiveQuery: @unchecked Sendable, Hashable {
     private let pointer: OpaquePointer
     private let lock = NSLock()
+    /// Where this query's polls and close run (see TalaDB.watchNext).
+    let queue = DispatchQueue(label: "dev.taladb.live-query")
     private var open = true
     private let closingFlag = ManagedAtomicFlag()
 
