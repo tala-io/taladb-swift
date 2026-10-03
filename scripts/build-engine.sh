@@ -37,12 +37,15 @@ case "$(uname -s)" in
         lib() { echo "$TARGET_DIR/$1/release/libtaladb_ffi.a"; }
         WORK="$(mktemp -d)"
         trap 'rm -rf "$WORK"' EXIT
-        lipo -create "$(lib aarch64-apple-ios-sim)" "$(lib x86_64-apple-ios)" -output "$WORK/sim.a"
-        lipo -create "$(lib aarch64-apple-darwin)" "$(lib x86_64-apple-darwin)" -output "$WORK/macos.a"
+        # SwiftPM rejects xcframework libraries not named lib*.a, so each fat
+        # slice keeps the original file name in its own directory.
+        mkdir -p "$WORK/sim" "$WORK/macos"
+        lipo -create "$(lib aarch64-apple-ios-sim)" "$(lib x86_64-apple-ios)" -output "$WORK/sim/libtaladb_ffi.a"
+        lipo -create "$(lib aarch64-apple-darwin)" "$(lib x86_64-apple-darwin)" -output "$WORK/macos/libtaladb_ffi.a"
         xcodebuild -create-xcframework \
             -library "$(lib aarch64-apple-ios)" -headers "$OUT/include" \
-            -library "$WORK/sim.a" -headers "$OUT/include" \
-            -library "$WORK/macos.a" -headers "$OUT/include" \
+            -library "$WORK/sim/libtaladb_ffi.a" -headers "$OUT/include" \
+            -library "$WORK/macos/libtaladb_ffi.a" -headers "$OUT/include" \
             -output "$OUT/TalaDBFFI.xcframework"
         ;;
     *)

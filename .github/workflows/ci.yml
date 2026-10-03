@@ -38,10 +38,20 @@ jobs:
       - name: Swift version
         run: swift --version
 
+      # Style is .swift-format; `swift format format -i --recursive Sources
+      # Tests Package.swift` fixes most findings.
+      - name: Format and lint
+        run: swift format lint --strict --recursive Sources Tests Package.swift
+
       - name: Stage engine and test
         run: |
           scripts/build-engine.sh engine-src
-          scripts/test-linux.sh
+          scripts/test-linux.sh -Xswiftc -warnings-as-errors
+
+      # Release dry run: an app that depends on this package the way the
+      # README says builds, links and runs.
+      - name: Consumer package
+        run: scripts/check-package.sh
 
   apple:
     name: Tests (macOS and iOS simulator)
@@ -80,6 +90,9 @@ jobs:
 
       - name: swift test (macOS)
         run: swift test
+
+      - name: Consumer package (macOS)
+        run: scripts/check-package.sh
 
       - name: Tests on an iOS simulator
         run: |
