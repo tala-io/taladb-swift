@@ -26,7 +26,9 @@ targets: [
 
 iOS 13+ and macOS 10.15+, through Swift Package Manager. The engine ships as
 a prebuilt `TalaDBFFI.xcframework`, which SwiftPM downloads and verifies by
-checksum.
+checksum. There is no prebuilt engine for Linux: adding the package there
+fails with `header '../../engine/include/taladb.h' not found` until you build
+the engine from source, as described under [Development](#development).
 
 ## Use
 
